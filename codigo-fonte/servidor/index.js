@@ -108,6 +108,184 @@ function parameterMap(rows) {
   }, {});
 }
 
+function createMockStore() {
+  const demoUser = {
+    id: 1,
+    username: 'DEV',
+    password_hash: hashPassword('352155'),
+    role: 'ADMIN',
+    full_name: 'Usuário Demo',
+    active: true,
+    access_groups: defaultAccessGroups
+  };
+
+  return {
+    users: [demoUser],
+    farms: [{ id: 1, name: 'Fazenda Demo', document: '00.000.000/0001-00', location: 'Zona Rural', total_area: 150.5 }],
+    plots: [{ id: 1, farm_id: 1, name: 'Talhão A', area: 40, current_crop: 'Milho', coordinates: 'Lat -15 / Long -48', description: 'Área principal de lavoura' }],
+    paddocks: [{ id: 1, farm_id: 1, name: 'Pasto Norte', area: 18, grass_type: 'Braquiária', status: 'ativo' }],
+    employees: [{ id: 1, farm_id: 1, name: 'João Silva', role_name: 'Capataz', contact: '(00) 90000-0000', status: 'ativo' }],
+    lots: [{ id: 1, farm_id: 1, name: 'Lote 1', purpose: 'Engorda', notes: 'Lote inicial' }],
+    animals: [{ id: 1, farm_id: 1, lot_id: 1, paddock_id: 1, ear_tag: 'BR-001', species: 'bovino', sex: 'M', breed: 'Nelore', birth_date: '2023-03-10', category: 'boi', status: 'ativo' }],
+    animal_events: [],
+    crop_operations: [],
+    inventory_items: [
+      { id: 1, name: 'Ração Premium', category: 'racao', unit: 'kg', minimum_stock: 150, current_stock: 420, unit_price: 18.5 },
+      { id: 2, name: 'Vacina A', category: 'medicamento', unit: 'un', minimum_stock: 15, current_stock: 8, unit_price: 24 },
+      { id: 3, name: 'Adubo NPK', category: 'insumo', unit: 'kg', minimum_stock: 200, current_stock: 350, unit_price: 12.4 }
+    ],
+    inventory_moves: [],
+    finance_entries: [
+      { id: 1, entry_type: 'despesa', competence_date: '2026-01-15', payment_date: '2026-01-15', amount: 1200, payment_method: 'PIX', category: 'Ração', cost_center: 'pecuaria', description: 'Compra inicial de ração', status: 'pago' },
+      { id: 2, entry_type: 'receita', competence_date: '2026-01-15', payment_date: '2026-01-15', amount: 3500, payment_method: 'Transferência', category: 'Venda', cost_center: 'pecuaria', description: 'Venda inicial de gado', status: 'pago' }
+    ],
+    payables: [{ id: 1, supplier: 'Fornecedor Demo', due_date: '2026-01-20', payment_date: null, amount: 850, status: 'aberto', purchase_id: 1, notes: 'Pendente' }],
+    receivables: [{ id: 1, customer_name: 'Cliente Demo', due_date: '2026-01-25', receive_date: null, amount: 1600, status: 'aberto', sale_id: 1, notes: 'Aguardando' }],
+    purchases: [{ id: 1, supplier: 'Fornecedor Demo', purchase_date: '2026-01-15', item_id: 1, quantity: 20, unit_price: 18.5, taxes: 0, status: 'aberto', notes: 'Compra demo' }],
+    sales: [{ id: 1, customer_name: 'Cliente Demo', sale_date: '2026-01-15', sale_type: 'animal', sale_scope: 'unidade', animal_id: 1, lot_id: 1, item_id: null, quantity: 1, unit_price: 3500, status: 'aberto', notes: 'Venda demo' }],
+    system_parameters: [
+      { key: 'works_with_livestock', label: 'CLIENTE TRABALHA COM PECUÁRIA', value: true, sort_order: 1 },
+      { key: 'works_with_agriculture', label: 'CLIENTE TRABALHA COM AGRICULTURA', value: true, sort_order: 2 }
+    ]
+  };
+}
+
+function createMockPool(mockStore) {
+  const cloneRows = (rows) => JSON.parse(JSON.stringify(rows || []));
+  const getRowsForTable = (tableName) => cloneRows(mockStore[tableName] || []);
+  const setRowsForTable = (tableName, rows) => { mockStore[tableName] = cloneRows(rows || []); };
+
+  function parseTableName(sql) {
+    const match = String(sql || '')
+      .match(/\b(?:from|into|update)\s+([a-z_][a-z0-9_]*)/i);
+    return match ? match[1] : null;
+  }
+
+  function parseIdentifier(sql) {
+    const match = String(sql || '').match(/\bwhere\s+id\s*=\s*\$1/i);
+    return match ? 1 : null;
+  }
+
+  async function query(text, params = []) {
+    const sql = String(text || '').trim();
+    const upper = sql.toUpperCase();
+
+    if (!sql) return { rows: [] };
+    if (/^SELECT 1$/i.test(sql)) return { rows: [{ '?column?': 1 }] };
+    if (upper === 'BEGIN' || upper === 'COMMIT' || upper === 'ROLLBACK') return { rows: [] };
+
+    const tableName = parseTableName(sql);
+
+    if (tableName && upper.startsWith('SELECT COUNT(*)')) {
+      const rows = getRowsForTable(tableName);
+      return { rows: [{ total: rows.length }] };
+    }
+
+    if (tableName && upper.startsWith('SELECT')) {
+      let rows = getRowsForTable(tableName);
+      if (tableName === 'users' && sql.includes('WHERE username = $1 AND password_hash = $2')) {
+        const [username, passwordHash] = params;
+        rows = rows.filter((row) => row.username === username && row.password_hash === passwordHash);
+        return { rows };
+      }
+      if (tableName === 'inventory_items' && sql.includes('WHERE current_stock <= minimum_stock')) {
+        rows = rows.filter((row) => Number(row.current_stock || 0) <= Number(row.minimum_stock || 0));
+      }
+      if (tableName === 'finance_entries' && sql.includes('GROUP BY entry_type')) {
+        const totals = rows.reduce((acc, row) => {
+          acc[row.entry_type] = (acc[row.entry_type] || 0) + Number(row.amount || 0);
+          return acc;
+        }, {});
+        return { rows: Object.entries(totals).map(([entry_type, total]) => ({ entry_type, total })) };
+      }
+      if (tableName === 'finance_entries' && sql.includes('TO_CHAR')) {
+        return { rows: rows.map((row) => ({ month: row.competence_date.slice(0, 7), entry_type: row.entry_type, total: Number(row.amount || 0) })) };
+      }
+      if (tableName === 'finance_entries' && sql.includes('cost_center')) {
+        const totals = rows.reduce((acc, row) => {
+          if (row.entry_type !== 'despesa') return acc;
+          acc[row.cost_center || 'sem-centro'] = (acc[row.cost_center || 'sem-centro'] || 0) + Number(row.amount || 0);
+          return acc;
+        }, {});
+        return { rows: Object.entries(totals).map(([cost_center, total]) => ({ cost_center, total })) };
+      }
+      if (tableName === 'animals' && sql.includes("status = 'ativo'")) {
+        rows = rows.filter((row) => row.status === 'ativo');
+        return { rows: [{ total: rows.length }] };
+      }
+      if (tableName === 'inventory_items' && sql.includes('COUNT(*)')) {
+        return { rows: [{ total: rows.length }] };
+      }
+      if (tableName === 'inventory_items' && sql.includes('SELECT * FROM inventory_items')) {
+        return { rows };
+      }
+      if (tableName === 'system_parameters') {
+        return { rows };
+      }
+      return { rows };
+    }
+
+    if (upper.startsWith('INSERT INTO')) {
+      const tableName = parseTableName(sql);
+      const rows = getRowsForTable(tableName);
+      const id = (rows.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1);
+      const record = { id, ...parseInsertPayload(sql, params) };
+      rows.push(record);
+      setRowsForTable(tableName, rows);
+      return { rows: [record] };
+    }
+
+    if (upper.startsWith('UPDATE')) {
+      const tableName = parseTableName(sql);
+      const rows = getRowsForTable(tableName);
+      const id = Number(params[params.length - 1] || 0);
+      const index = rows.findIndex((row) => Number(row.id) === id);
+      if (index >= 0) {
+        rows[index] = { ...rows[index], ...parseUpdatePayload(sql, params) };
+        setRowsForTable(tableName, rows);
+        return { rows: [rows[index]] };
+      }
+      return { rows: [] };
+    }
+
+    if (upper.startsWith('DELETE FROM')) {
+      const tableName = parseTableName(sql);
+      const rows = getRowsForTable(tableName).filter((row) => Number(row.id) !== Number(params[0]));
+      setRowsForTable(tableName, rows);
+      return { rows: [] };
+    }
+
+    return { rows: [] };
+  }
+
+  function parseInsertPayload(sql, params) {
+    const tableName = parseTableName(sql);
+    if (!tableName) return {};
+    const fieldsMatch = String(sql).match(/\(([^)]+)\)\s+VALUES/i);
+    const fields = fieldsMatch ? fieldsMatch[1].split(',').map((field) => field.trim()) : [];
+    const values = params || [];
+    return fields.reduce((acc, field, index) => {
+      acc[field] = values[index];
+      return acc;
+    }, {});
+  }
+
+  function parseUpdatePayload(sql, params) {
+    const setsMatch = String(sql).match(/SET\s+(.+?)\s+WHERE/i);
+    const sets = setsMatch ? setsMatch[1].split(',').map((piece) => piece.trim()) : [];
+    return sets.reduce((acc, set, index) => {
+      const [field, , value] = set.split(/\s*=\s*/);
+      acc[field] = params[index];
+      return acc;
+    }, {});
+  }
+
+  return {
+    query,
+    connect: async () => ({ query, release: () => {} }),
+    end: async () => {}
+  };
+}
 
 async function runSchema(pool) {
   const sql = fs.readFileSync(path.join(__dirname, 'sql', 'schema.sql'), 'utf8');
@@ -205,13 +383,22 @@ async function removeRow(pool, resource, id) {
 module.exports = async function startServer(config) {
   const app = express();
   const port = config.appPort || 4312;
-  const pool = new Pool({ host: config.host, port: config.port, user: config.user, password: config.password, database: config.database });
+  const realPool = new Pool({ host: config.host, port: config.port, user: config.user, password: config.password, database: config.database });
   const sessions = new Map();
   const inmetService = createInmetService();
   const interfaceDir = path.resolve(__dirname, '../interface');
+  const mockStore = createMockStore();
+  let pool = realPool;
+  let mockMode = false;
 
-  await pool.query('SELECT 1');
-  await runSchema(pool);
+  try {
+    await realPool.query('SELECT 1');
+    await runSchema(realPool);
+  } catch (error) {
+    mockMode = true;
+    pool = createMockPool(mockStore);
+    console.warn('PostgreSQL indisponível. Iniciando em modo demonstração local.', error.message);
+  }
   app.use(express.json());
   app.use(express.static(interfaceDir));
 
