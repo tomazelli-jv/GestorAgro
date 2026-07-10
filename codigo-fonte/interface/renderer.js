@@ -852,6 +852,31 @@ function openManageUsersAuth() {
   openSettingsAuth('users');
 }
 
+function getNavIconMarkup(mod) {
+  const imageMap = {
+    home_dashboard: '../imagens/nav-home.svg',
+    farm_livestock: '../imagens/nav-farm.svg',
+    plots: '../imagens/nav-plots.svg',
+    paddocks: '../imagens/nav-paddocks.svg',
+    animals: '../imagens/nav-animals.svg',
+    lots: '../imagens/nav-farm.svg',
+    animal_events: '../imagens/nav-animals.svg',
+    sales: '../imagens/nav-farm.svg',
+    inventory_items: '../imagens/nav-home.svg',
+    inventory_moves: '../imagens/nav-home.svg',
+    purchases: '../imagens/nav-home.svg',
+    crop_operations: '../imagens/nav-plots.svg',
+    finance_entries: '../imagens/nav-home.svg',
+    payables: '../imagens/nav-home.svg',
+    receivables: '../imagens/nav-home.svg',
+    reports: '../imagens/nav-home.svg',
+    map_hub: '../imagens/nav-home.svg',
+    mapa_interativo: '../imagens/nav-home.svg'
+  };
+  const src = imageMap[mod.key] || '../imagens/nav-home.svg';
+  return `<img src="${src}" alt="${mod.title}" class="nav-btn-image" />`;
+}
+
 function renderNav() {
   const available = modulesForCurrentGroup().filter((mod) => !mod.module || hasModuleAccess(mod.module));
   if (!available.find((mod) => mod.key === state.currentModule)) {
@@ -860,14 +885,121 @@ function renderNav() {
   const hideSidebar = ['home', 'map', 'reports'].includes(currentGroup);
   document.getElementById('module-sidebar').classList.toggle('hidden', hideSidebar);
   el.workspace.classList.toggle('home-mode', hideSidebar);
-  el.navList.innerHTML = available.map((mod) => `<button class="nav-btn ${state.currentModule === mod.key ? 'active' : ''}" data-module="${mod.key}">${mod.title}</button>`).join('');
+  el.navList.innerHTML = available.map((mod) => `
+    <button class="nav-btn compact-nav ${state.currentModule === mod.key ? 'active' : ''}" data-module="${mod.key}">
+      <span class="nav-btn-icon">${getNavIconMarkup(mod)}</span>
+      <span class="nav-btn-label">${mod.title}</span>
+    </button>
+  `).join('');
   el.navList.querySelectorAll('[data-module]').forEach((btn) => btn.onclick = () => switchModule(btn.dataset.module));
 }
 
 function renderCrudHighlight(module) {
   if (!el.crudHighlight) return;
   el.crudHighlight.innerHTML = '';
-  el.crudHighlight.className = '';
+  el.crudHighlight.className = 'crud-highlight';
+
+  if (module?.key !== 'plots') return;
+
+  const plots = state.lookups?.plots || [];
+  const operations = state.lookups?.crop_operations || [];
+  const totalArea = plots.reduce((sum, item) => sum + Number(item.area || 0), 0);
+  const crops = [...new Set(plots.map((item) => String(item.current_crop || '').trim()).filter(Boolean))];
+  const allPlotCards = plots.map((plot) => `
+    <div class="plots-item-card">
+      <div class="plots-item-figure">
+        <img src="../imagens/plots-card.svg" alt="Talhão" />
+      </div>
+      <div class="plots-item-body">
+        <div class="plots-item-title">${escapeHtml(plot.name || 'Talhão sem nome')}</div>
+        <div class="plots-item-meta">${plot.current_crop ? escapeHtml(plot.current_crop) : 'Cultura não definida'}</div>
+        <div class="plots-item-stats">
+          <span>${Number(plot.area || 0) ? `${Number(plot.area).toLocaleString('pt-BR')} ha` : 'Área não informada'}</span>
+          ${plot.coordinates ? `<span>${escapeHtml(plot.coordinates)}</span>` : ''}
+        </div>
+      </div>
+    </div>`).join('');
+
+  el.crudHighlight.innerHTML = `
+    <div class="plots-hero-shell">
+      <div class="plots-hero-card">
+        <div class="plots-hero-copy">
+          <div class="plots-kicker">Gestão de Talhões</div>
+          <h2>Centralize áreas, culturas e operações em um painel elegante</h2>
+          <p>${plots.length ? `Você tem ${plots.length} talhão(ões) mapeados, cobrindo ${totalArea ? `${Number(totalArea).toLocaleString('pt-BR')} ha` : 'área ainda não definida'}.` : 'Cadastre os primeiros talhões para começar a acompanhar produtividade e manejo.'}</p>
+          <div class="plots-hero-actions">
+            <button class="primary" type="button" data-plot-action="new">+ Novo talhão</button>
+            <button class="ghost" type="button" data-plot-action="ops">Ver operações</button>
+          </div>
+        </div>
+        <div class="plots-hero-visual">
+          <img src="../imagens/plots-hero-visual.svg" alt="Visão de talhões" />
+        </div>
+      </div>
+      <div class="plots-summary-row">
+        <div class="plots-summary-card">
+          <img src="../imagens/plots-summary-icon.svg" alt="Área total" />
+          <div>
+            <div class="plots-summary-title">Área total</div>
+            <div class="plots-summary-value">${totalArea ? `${Number(totalArea).toLocaleString('pt-BR')} ha` : '—'}</div>
+          </div>
+        </div>
+        <div class="plots-summary-card">
+          <img src="../imagens/plots-summary-icon.svg" alt="Culturas" />
+          <div>
+            <div class="plots-summary-title">Culturas</div>
+            <div class="plots-summary-value">${crops.length ? escapeHtml(crops.join(', ')) : '—'}</div>
+          </div>
+        </div>
+        <div class="plots-summary-card">
+          <img src="../imagens/plots-summary-icon.svg" alt="Operações" />
+          <div>
+            <div class="plots-summary-title">Operações</div>
+            <div class="plots-summary-value">${operations.length}</div>
+          </div>
+        </div>
+      </div>
+      <div class="plots-details-shell">
+        <div class="plots-details-panel">
+          <div class="panel-title">Resumo rápido</div>
+          <div class="plots-metrics-grid">
+            <div class="plots-metric-card">
+              <span>Talhões cadastrados</span>
+              <strong>${plots.length}</strong>
+            </div>
+            <div class="plots-metric-card">
+              <span>Média por talhão</span>
+              <strong>${plots.length ? `${(totalArea / plots.length).toFixed(1).replace('.', ',')} ha` : '—'}</strong>
+            </div>
+            <div class="plots-metric-card">
+              <span>Culturas em uso</span>
+              <strong>${crops.length ? `${escapeHtml(crops[0])}` : '—'}</strong>
+            </div>
+          </div>
+        </div>
+        <div class="plots-details-panel plots-items-panel">
+          <div class="panel-title">Talhões em destaque</div>
+          <div class="plots-items-list">
+            ${allPlotCards || '<div class="empty">Nenhum talhão cadastrado ainda.</div>'}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  el.crudHighlight.querySelectorAll('[data-plot-action]').forEach((btn) => {
+    btn.onclick = async () => {
+      const action = btn.getAttribute('data-plot-action');
+      if (action === 'new') {
+        openForm('plots');
+        return;
+      }
+      if (action === 'ops') {
+        state.currentModule = 'crop_operations';
+        renderNav();
+        await switchModule('crop_operations');
+      }
+    };
+  });
 }
 
 function switchView(view) {
