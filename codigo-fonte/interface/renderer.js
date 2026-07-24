@@ -905,6 +905,24 @@ function renderCrudHighlight(module) {
   const operations = state.lookups?.crop_operations || [];
   const totalArea = plots.reduce((sum, item) => sum + Number(item.area || 0), 0);
   const crops = [...new Set(plots.map((item) => String(item.current_crop || '').trim()).filter(Boolean))];
+  const strategicCards = [
+    { title: 'Planejamento de safra', meta: 'Ciclo, custos e metas', detail: 'Organize cada talhão com foco em produtividade.', figure: '../imagens/plots-hero-visual.svg' },
+    { title: 'Qualidade do solo', meta: 'Saúde e correção', detail: 'Monitore condicionantes e decisões de manejo.', figure: '../imagens/plots-card.svg' },
+    { title: 'Irrigação e água', meta: 'Disponibilidade hídrica', detail: 'Acompanhe pontos críticos para a lavoura.', figure: '../imagens/plots-summary-icon.svg' },
+    { title: 'Risco climático', meta: 'Previsão e alertas', detail: 'Antecipe perdas e ajuste o calendário.', figure: '../imagens/plots-card.svg' }
+  ].map((card) => `
+    <div class="plots-item-card plots-item-card--accent">
+      <div class="plots-item-figure">
+        <img src="${card.figure}" alt="${escapeHtml(card.title)}" />
+      </div>
+      <div class="plots-item-body">
+        <div class="plots-item-title">${escapeHtml(card.title)}</div>
+        <div class="plots-item-meta">${escapeHtml(card.meta)}</div>
+        <div class="plots-item-stats">
+          <span>${escapeHtml(card.detail)}</span>
+        </div>
+      </div>
+    </div>`).join('');
   const allPlotCards = plots.map((plot) => `
     <div class="plots-item-card">
       <div class="plots-item-figure">
@@ -978,9 +996,20 @@ function renderCrudHighlight(module) {
           </div>
         </div>
         <div class="plots-details-panel plots-items-panel">
-          <div class="panel-title">Talhões em destaque</div>
-          <div class="plots-items-list">
-            ${allPlotCards || '<div class="empty">Nenhum talhão cadastrado ainda.</div>'}
+          <div class="panel-title">Talhões e prioridades</div>
+          <div class="plots-items-scroll">
+            <div class="plots-list-block">
+              <div class="plots-list-title">Prioridades de manejo</div>
+              <div class="plots-items-list">
+                ${strategicCards}
+              </div>
+            </div>
+            <div class="plots-list-block">
+              <div class="plots-list-title">Talhões em destaque</div>
+              <div class="plots-items-list">
+                ${allPlotCards || '<div class="empty">Nenhum talhão cadastrado ainda.</div>'}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -994,9 +1023,7 @@ function renderCrudHighlight(module) {
         return;
       }
       if (action === 'ops') {
-        state.currentModule = 'crop_operations';
-        renderNav();
-        await switchModule('crop_operations');
+        await setGroup('agriculture');
       }
     };
   });
