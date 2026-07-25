@@ -1045,5 +1045,328 @@ CREATE INDEX idx_work_team_members_leader
 ON work_team_members(is_leader);
 
 
+/******************************************************************************
+*
+*   TABELA: employee_dependents
+*
+*   RESPONSABILIDADE
+*
+*   Armazena os dependentes dos funcionários.
+*
+******************************************************************************/
+
+CREATE TABLE employee_dependents (
+
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+
+    employee_id BIGINT UNSIGNED NOT NULL,
+
+    full_name VARCHAR(150) NOT NULL,
+
+    relationship VARCHAR(30) NOT NULL,
+
+    birth_date DATE NOT NULL,
+
+    cpf CHAR(11) NULL,
+
+    observations TEXT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
+
+    created_by BIGINT UNSIGNED NULL,
+
+    updated_by BIGINT UNSIGNED NULL,
+
+    deleted_by BIGINT UNSIGNED NULL,
+
+    CONSTRAINT uq_employee_dependents_uuid
+        UNIQUE (uuid),
+
+    CONSTRAINT chk_employee_dependent_name
+        CHECK (TRIM(full_name) <> ''),
+
+    CONSTRAINT chk_employee_dependent_relationship
+        CHECK (
+
+            relationship IN (
+
+                'SPOUSE',
+
+                'CHILD',
+
+                'FATHER',
+
+                'MOTHER',
+
+                'STEPCHILD',
+
+                'OTHER'
+
+            )
+
+        ),
+
+    CONSTRAINT chk_employee_dependent_cpf
+        CHECK (
+            cpf IS NULL
+            OR CHAR_LENGTH(cpf) = 11
+        ),
+
+    CONSTRAINT fk_employee_dependents_employee
+        FOREIGN KEY (employee_id)
+        REFERENCES employees(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+
+)
+
+ENGINE=InnoDB
+
+DEFAULT CHARSET=utf8mb4
+
+COLLATE=utf8mb4_unicode_ci
+
+COMMENT='Dependentes dos funcionários.';
+
+/******************************************************************************
+    ÍNDICES
+******************************************************************************/
+
+CREATE INDEX idx_employee_dependents_employee
+ON employee_dependents(employee_id);
+
+CREATE INDEX idx_employee_dependents_name
+ON employee_dependents(full_name);
+
+CREATE INDEX idx_employee_dependents_relationship
+ON employee_dependents(relationship);
+
+CREATE INDEX idx_employee_dependents_birth_date
+ON employee_dependents(birth_date);
+
+/******************************************************************************
+*
+*   TABELA: employee_bank_accounts
+*
+*   RESPONSABILIDADE
+*
+*   Armazena as contas bancárias dos funcionários.
+*
+******************************************************************************/
+
+CREATE TABLE employee_bank_accounts (
+
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+
+    employee_id BIGINT UNSIGNED NOT NULL,
+
+    bank_name VARCHAR(100) NOT NULL,
+
+    account_type VARCHAR(20) NOT NULL,
+
+    agency VARCHAR(20) NOT NULL,
+
+    account_number VARCHAR(30) NOT NULL,
+
+    pix_key_type VARCHAR(20) NULL,
+
+    pix_key VARCHAR(255) NULL,
+
+    is_primary BOOLEAN NOT NULL DEFAULT TRUE,
+
+    observations TEXT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
+
+    created_by BIGINT UNSIGNED NULL,
+
+    updated_by BIGINT UNSIGNED NULL,
+
+    deleted_by BIGINT UNSIGNED NULL,
+
+    CONSTRAINT uq_employee_bank_accounts_uuid
+        UNIQUE (uuid),
+
+    CONSTRAINT chk_employee_bank_account_type
+        CHECK (
+
+            account_type IN (
+
+                'CHECKING',
+
+                'SAVINGS',
+
+                'SALARY',
+
+                'OTHER'
+
+            )
+
+        ),
+
+    CONSTRAINT chk_employee_bank_pix_type
+        CHECK (
+
+            pix_key_type IS NULL
+
+            OR
+
+            pix_key_type IN (
+
+                'CPF',
+
+                'CNPJ',
+
+                'EMAIL',
+
+                'PHONE',
+
+                'RANDOM'
+
+            )
+
+        ),
+
+    CONSTRAINT fk_employee_bank_accounts_employee
+        FOREIGN KEY (employee_id)
+        REFERENCES employees(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+
+)
+
+ENGINE=InnoDB
+
+DEFAULT CHARSET=utf8mb4
+
+COLLATE=utf8mb4_unicode_ci
+
+COMMENT='Contas bancárias dos funcionários.';
+
+/******************************************************************************
+    ÍNDICES
+******************************************************************************/
+
+CREATE INDEX idx_employee_bank_accounts_employee
+ON employee_bank_accounts(employee_id);
+
+CREATE INDEX idx_employee_bank_accounts_primary
+ON employee_bank_accounts(is_primary);
+
+CREATE INDEX idx_employee_bank_accounts_bank
+ON employee_bank_accounts(bank_name);
+
+
+/******************************************************************************
+*
+*   TABELA: employee_salary_history
+*
+*   RESPONSABILIDADE
+*
+*   Armazena o histórico salarial dos funcionários.
+*
+******************************************************************************/
+
+CREATE TABLE employee_salary_history (
+
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+
+    employee_id BIGINT UNSIGNED NOT NULL,
+
+    salary DECIMAL(15,2) NOT NULL,
+
+    effective_date DATE NOT NULL,
+
+    reason VARCHAR(30) NOT NULL DEFAULT 'ADJUSTMENT',
+
+    observations TEXT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
+
+    created_by BIGINT UNSIGNED NULL,
+
+    updated_by BIGINT UNSIGNED NULL,
+
+    deleted_by BIGINT UNSIGNED NULL,
+
+    CONSTRAINT uq_employee_salary_history_uuid
+        UNIQUE (uuid),
+
+    CONSTRAINT chk_employee_salary
+        CHECK (
+            salary >= 0
+        ),
+
+    CONSTRAINT chk_employee_salary_reason
+        CHECK (
+
+            reason IN (
+
+                'HIRING',
+
+                'PROMOTION',
+
+                'ADJUSTMENT',
+
+                'TRANSFER',
+
+                'BONUS',
+
+                'OTHER'
+
+            )
+
+        ),
+
+    CONSTRAINT fk_employee_salary_history_employee
+        FOREIGN KEY (employee_id)
+        REFERENCES employees(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+
+)
+
+ENGINE=InnoDB
+
+DEFAULT CHARSET=utf8mb4
+
+COLLATE=utf8mb4_unicode_ci
+
+COMMENT='Histórico salarial dos funcionários.';
+
+
+/******************************************************************************
+    ÍNDICES
+******************************************************************************/
+
+CREATE INDEX idx_employee_salary_history_employee
+ON employee_salary_history(employee_id);
+
+CREATE INDEX idx_employee_salary_history_effective_date
+ON employee_salary_history(effective_date);
+
+CREATE INDEX idx_employee_salary_history_reason
+ON employee_salary_history(reason);
 
 
